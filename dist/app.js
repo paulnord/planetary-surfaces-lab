@@ -1,0 +1,61 @@
+let catalog=[],mode='craters',selected=[],zoom=[1,1],pan=[{x:0,y:0},{x:0,y:0}],viewerObservers=[];
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sections={craters:{title:'Reading an impact crater',guide:'Map what you see',collection:'Course image collection',body:'Venus',pair:['venus-dani','venus-danii'],html:`<p>Begin with Danilova: compare the radar image with its interpreted geologic map.</p><ol><li>Choose three craters from different planets, following Q5 in the handout.</li><li>Sketch each on at least half a sheet of paper. Record its world and filename.</li><li>Outline visible units and describe the crater shape and ejecta. Not every feature will be present.</li></ol><div class="key"><b>CP</b><span>Central peak</span><b>CF</b><span>Crater floor</span><b>CW</b><span>Crater wall</span><b>CE</b><span>Crater ejecta</span><b>CO</b><span>Crater outflow</span></div><p>Venus images are radar observations. Brightness reflects radar scattering, not the color you would see with your eyes.</p>`},ages:{title:'Which came first?',guide:'Build a relative history',collection:'Mars: original lab images',body:'Mars',pair:['mars-valles_m','mars-slump'],html:`<p>Use <b>VALLES_M.JPG</b> for Q6 in the handout. Other Mars images provide additional comparisons.</p><ol><li>Sketch a geologic map. Identify the major features you can actually see.</li><li>Look for overlaps, buried edges, and features that cut across other features.</li><li>List events from oldest to youngest. Give visible evidence for each ordering.</li><li>Separate a confident sequence from relationships the image cannot resolve.</li></ol><p><b>Look for:</b> craters, landslides, flow channels, scarps, ejecta blankets, lava flows, slump blocks, and debris aprons.</p><p>Superposition gives a relative order, not an age in years.</p>`},missions:{title:'Beyond the original collection',guide:'Try the same methods elsewhere',collection:'Mars & the moons of Jupiter',body:'All worlds',pair:['mars-rampart-2024','ganymede-juno-2021'],html:`<p>These optional extensions apply the same mapping and relative-age methods to more recent spacecraft images.</p><ol><li><b>Mars:</b> trace crater deposits and compare boundaries and surface textures.</li><li><b>Ganymede:</b> compare terrain patches and their crater populations.</li><li><b>Europa:</b> inspect intersecting features in the ice. Decide which relationships are clear.</li><li><b>Io:</b> compare circular features with those on cratered worlds. What evidence distinguishes their possible origins?</li></ol><p>Each image includes an observation prompt, processing notes, and a link to the mission source.</p><p>Do not interpret fewer visible craters as a younger surface without considering resolution, imaged area, and resurfacing.</p>`},archive:{title:'Explore the original image archive',guide:'From folder to fieldwork',collection:'All original images',body:'All worlds',pair:['moon-copernic','earth-meteor'],html:`<p>Browse the original course folders by world or search for a filename from the handout.</p><p>The mixed archive retains the original ICRATER folder, including duplicated images and instructional maps.</p><p>Activity 1 and the pre-lab remain in the original PDF. Use your course worksheet or paper for calculations, sketches, and responses.</p><p>This viewer does not collect or submit student work.</p>`}};
+function toast(t){$('#status').textContent=t;$('#status').style.display='block';clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>$('#status').style.display='none',2500)}
+function renderViewers(){viewerObservers.forEach(observer=>observer.disconnect());viewerObservers=[];const compare=$('#compare').checked;$('#viewers').classList.toggle('single',!compare);$('#target').options[1].disabled=!compare;if(!compare)$('#target').value='0';$('#viewers').innerHTML=selected.slice(0,compare?2:1).map((im,i)=>`<article class="viewer"><div class="viewerhead"><strong><span class="badge">${i?'B':'A'}</span>${esc(im.body)}</strong><div class="zoomtools"><button data-view="${i}" data-zoom="out" aria-label="Zoom out viewer ${i?'B':'A'}">−</button><output>${Math.round(zoom[i]*100)}%</output><button data-view="${i}" data-zoom="in" aria-label="Zoom in viewer ${i?'B':'A'}">+</button><button data-view="${i}" data-zoom="fit">Fit</button></div></div><div class="viewport" data-view="${i}" tabindex="0" aria-label="${esc(im.title)} image; click and drag or use arrow keys to pan when zoomed. Two-finger scrolling scrolls the page."><div class="imagearea"><img src="${esc(im.src)}" alt="${esc(im.title)} — ${esc(im.body)}" draggable="false"></div></div><div class="imagecaption"><h3>${esc(im.title)}</h3><p>${esc(im.filename||im.date)} · ${im.width} × ${im.height} px${im.date?' · '+esc(im.date):''}</p><a href="${esc(im.src)}" target="_blank" rel="noopener">Open image ↗</a>${im.source?' · <a href="'+esc(im.source)+'" target="_blank" rel="noopener">Mission source ↗</a>':''}${im.prompt?'<p><b>Observe:</b> '+esc(im.prompt)+'</p>':''}<details><summary>Image notes & credits</summary><p>${esc(im.notes||'Original course image; physical scale and acquisition date are not documented in the supplied file. Consult image annotations and the handout where available.')}</p><p>${esc(im.credit)}</p></details></div></article>`).join('');bindViewerControls()}
+
+// Image position is independent of native scroll, so trackpad scrolling belongs to the page.
+function updateViewer(i){
+ const viewport=$('.viewport[data-view="'+i+'"]');if(!viewport)return;
+ const image=selected[i],fit=Math.min(viewport.clientWidth/image.width,viewport.clientHeight/image.height);
+ const maxX=Math.max(0,(image.width*fit*zoom[i]-viewport.clientWidth)/2);
+ const maxY=Math.max(0,(image.height*fit*zoom[i]-viewport.clientHeight)/2);
+ pan[i].x=Math.max(-maxX,Math.min(maxX,pan[i].x));
+ pan[i].y=Math.max(-maxY,Math.min(maxY,pan[i].y));
+ viewport.querySelector('.imagearea').style.transform=`translate(${pan[i].x}px, ${pan[i].y}px) scale(${zoom[i]})`;
+ viewport.classList.toggle('zoomed',zoom[i]>1);
+ const controls=viewport.closest('.viewer').querySelector('.zoomtools');
+ controls.querySelector('output').textContent=Math.round(zoom[i]*100)+'%';
+ controls.querySelector('[data-zoom="out"]').disabled=zoom[i]<=1;
+ controls.querySelector('[data-zoom="in"]').disabled=zoom[i]>=8;
+}
+function changeZoom(i,action){
+ const previous=zoom[i];
+ zoom[i]=action==='fit'?1:Math.max(1,Math.min(8,previous*(action==='in'?1.5:1/1.5)));
+ // Preserve the image point under the viewport center as magnification changes.
+ pan[i].x*=zoom[i]/previous;pan[i].y*=zoom[i]/previous;
+ if(action==='fit')pan[i]={x:0,y:0};
+ updateViewer(i);
+}
+function bindViewerControls(){
+ $('#viewers').querySelectorAll('[data-zoom]').forEach(button=>button.onclick=()=>changeZoom(+button.dataset.view,button.dataset.zoom));
+ $('#viewers').querySelectorAll('.viewport').forEach(viewport=>{
+  const i=+viewport.dataset.view;let drag=null;
+  viewport.addEventListener('pointerdown',event=>{
+   if(event.pointerType==='touch'||event.button!==0||zoom[i]<=1)return;
+   event.preventDefault();viewport.focus({preventScroll:true});
+   drag={id:event.pointerId,x:event.clientX,y:event.clientY};
+   viewport.setPointerCapture(event.pointerId);viewport.classList.add('dragging');
+  });
+  viewport.addEventListener('pointermove',event=>{
+   if(!drag||event.pointerId!==drag.id)return;
+   pan[i].x+=event.clientX-drag.x;pan[i].y+=event.clientY-drag.y;
+   drag.x=event.clientX;drag.y=event.clientY;updateViewer(i);
+  });
+  const finish=event=>{if(drag&&event.pointerId===drag.id){drag=null;viewport.classList.remove('dragging');if(viewport.hasPointerCapture(event.pointerId))viewport.releasePointerCapture(event.pointerId)}};
+  viewport.addEventListener('pointerup',finish);viewport.addEventListener('pointercancel',finish);viewport.addEventListener('lostpointercapture',finish);
+  viewport.addEventListener('keydown',event=>{
+   if(event.key==='+'||event.key==='='){event.preventDefault();changeZoom(i,'in');return}
+   if(event.key==='-'){event.preventDefault();changeZoom(i,'out');return}
+   if(event.key==='0'){event.preventDefault();changeZoom(i,'fit');return}
+   const moves={ArrowLeft:[40,0],ArrowRight:[-40,0],ArrowUp:[0,40],ArrowDown:[0,-40]};
+   if(zoom[i]>1&&moves[event.key]){event.preventDefault();pan[i].x+=moves[event.key][0];pan[i].y+=moves[event.key][1];updateViewer(i)}
+  });
+  const observer=new ResizeObserver(()=>updateViewer(i));observer.observe(viewport);viewerObservers.push(observer);updateViewer(i);
+ });
+}
+
+function renderGallery(){const body=$('#body').value,q=$('#search').value.toLowerCase().trim();const images=catalog.filter(im=>(mode==='missions'?im.collection==='modern':im.collection==='original')&&(mode!=='craters'||im.body!=='Mixed archive')&&(mode!=='ages'||im.body==='Mars')&&(body==='All worlds'||im.body===body)&&[im.title,im.filename,im.body].join(' ').toLowerCase().includes(q));$('#count').textContent=images.length+' images · select an image to inspect';$('#gallery').innerHTML=images.length?images.map(im=>`<button class="card" data-id="${esc(im.id)}" aria-pressed="${selected.some(s=>s.id===im.id)}"><img src="${esc(im.thumb)}" alt="" loading="lazy"><span class="label"><strong>${esc(im.title)}</strong><small>${esc(im.body)} · ${esc(im.filename||im.date)}</small></span></button>`).join(''):'<p>No images match. Try another world or filename.</p>';$('#gallery').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>selectImage(b.dataset.id,+$('#target').value))}
+function selectImage(id,i){const im=catalog.find(c=>c.id===id);if(!im||![0,1].includes(i))throw Error('Unknown image or viewer');if(i===1)$('#compare').checked=true;selected[i]=im;zoom[i]=1;pan[i]={x:0,y:0};renderViewers();renderGallery();toast('Opened '+im.title+' in viewer '+(i?'B':'A'));return {image:im.id,viewer:i?'B':'A'}}
+function setMode(next){if(!sections[next])throw Error('Unknown section');mode=next;const s=sections[mode];document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===mode));$('#sectionTitle').textContent=s.title;$('#guideTitle').textContent=s.guide;$('#guide').innerHTML=s.html;$('#collectionTitle').textContent=s.collection;$('#search').value='';const available=[...new Set(catalog.filter(i=>mode==='missions'?i.collection==='modern':i.collection==='original').map(i=>i.body))].sort();$('#body').innerHTML=['All worlds',...available].map(b=>'<option>'+esc(b)+'</option>').join('');$('#body').value=s.body;selected=s.pair.map(id=>catalog.find(i=>i.id===id)||catalog[0]);zoom=[1,1];pan=[{x:0,y:0},{x:0,y:0}];renderViewers();renderGallery()}
+async function init(){try{const response=await fetch('catalog.json');if(!response.ok)throw Error('Image catalog could not load');catalog=await response.json();setMode('craters');document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));$('#compare').onchange=()=>{renderViewers();renderGallery()};$('#body').onchange=renderGallery;$('#search').oninput=renderGallery;const context=document.modelContext;if(context?.registerTool){Promise.resolve(context.registerTool({name:'inspect_planetary_images',description:'Open one or two catalog images in the visible comparison viewers. Does not submit student work.',inputSchema:{type:'object',properties:{imageIds:{type:'array',items:{type:'string'},minItems:1,maxItems:2}},required:['imageIds'],additionalProperties:false},execute(input){if(!Array.isArray(input.imageIds)||input.imageIds.length<1||input.imageIds.length>2||!input.imageIds.every(id=>catalog.some(c=>c.id===id)))throw Error('Supply one or two valid catalog image IDs');return input.imageIds.map((id,i)=>selectImage(id,i))}})).catch(()=>{});Promise.resolve(context.registerTool({name:'list_planetary_images',description:'List image IDs, worlds, names, and acquisition dates in the lab catalog.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute(){return catalog.map(({id,body,title,date})=>({id,body,title,date}))}})).catch(()=>{})}}catch(e){$('#gallery').textContent='The image collection could not load. Please reload the page.';console.error(e)}}init();

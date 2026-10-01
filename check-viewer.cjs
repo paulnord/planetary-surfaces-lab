@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync(require('node:path').join(__dirname,'dist/app.js'),'utf8').replace(/init\(\);\s*$/,'');
+const area={style:{}},output={},buttons={out:{},in:{}};
+const controls={querySelector:s=>s==='output'?output:s.includes('out')?buttons.out:buttons.in};
+const viewport={clientWidth:500,clientHeight:400,querySelector:()=>area,classList:{toggle(){}},closest:()=>({querySelector:()=>controls})};
+const ctx=vm.createContext({document:{querySelector:()=>viewport},console});vm.runInContext(source,ctx);
+vm.runInContext("selected=[{width:1000,height:800}];zoom=[2,1];pan=[{x:70,y:-40},{x:0,y:0}];changeZoom(0,'in')",ctx);
+assert.equal(vm.runInContext('zoom[0]',ctx),3);
+assert.equal(vm.runInContext('pan[0].x',ctx),105);assert.equal(vm.runInContext('pan[0].y',ctx),-60);
+vm.runInContext("changeZoom(0,'out')",ctx);assert.equal(vm.runInContext('pan[0].x',ctx),70);
+vm.runInContext("changeZoom(0,'fit')",ctx);assert.equal(vm.runInContext('pan[0].x+pan[0].y',ctx),0);assert.equal(vm.runInContext('zoom[0]',ctx),1);
+vm.runInContext("zoom[0]=8;pan[0]={x:10000,y:-10000};updateViewer(0)",ctx);
+assert.equal(vm.runInContext('pan[0].x',ctx),1750);assert.equal(vm.runInContext('pan[0].y',ctx),-1400);
+vm.runInContext("changeZoom(0,'in')",ctx);assert.equal(vm.runInContext('zoom[0]',ctx),8);
+vm.runInContext("selected[0]={width:100,height:1000};zoom[0]=2;pan[0]={x:200,y:0};updateViewer(0)",ctx);assert.equal(vm.runInContext('pan[0].x',ctx),0);
+assert(!source.includes("addEventListener('wheel'"));
+console.log('Passed: center preserved across zoom in/out; Fit reset; pan bounds; maximum zoom; portrait centering; no wheel interception.');
